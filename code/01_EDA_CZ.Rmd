@@ -1,0 +1,58 @@
+---
+title: "01_EDA_CZ"
+author: "Ziwei Crystal Zang"
+date: "8/26/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(factoextra)
+```
+
+```{r}
+data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv")
+head(data[,1:10])
+table(data$type)
+```
+
+```{r}
+#features
+matrix <- as.matrix(data[,3:ncol(data)])
+#construct pca
+res.pca <- prcomp(matrix, scale = TRUE)
+```
+
+```{r}
+#Plot
+#Code: http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/#:~:text=2.13%2049.9%2014.4-,Compute%20PCA%20in%20R%20using%20prcomp(),function%20and%20the%20factoextra%20package.&text=Visualize%20eigenvalues%20(scree%20plot).,explained%20by%20each%20principal%20component.
+  
+fviz_eig(res.pca)
+
+# fviz_pca_var(res.pca,
+#              col.var = "contrib", # Color by contributions to the PC
+#              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+#              repel = TRUE     # Avoid text overlapping
+#              )
+
+groups <- as.factor(data$type)
+fviz_pca_ind(res.pca,
+             col.ind = groups, # color by groups
+           #  palette = c("#00AFBB",  "#FC4E07"),
+             addEllipses = TRUE, # Concentration ellipses
+             ellipse.type = "confidence",
+             legend.title = "Groups",
+             repel = TRUE
+             )
+
+#access PCA results
+# Results for Variables
+res.var <- get_pca_var(res.pca)
+coord <- res.var$coord          # Coordinates
+contrib <-res.var$contrib        # Contributions to the PCs
+cos2 <-res.var$cos2           # Quality of representation 
+```
+
