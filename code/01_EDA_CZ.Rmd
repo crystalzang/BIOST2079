@@ -30,7 +30,7 @@ res.pca <- prcomp(matrix, scale = TRUE)
 #Plot
 #Code: http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/#:~:text=2.13%2049.9%2014.4-,Compute%20PCA%20in%20R%20using%20prcomp(),function%20and%20the%20factoextra%20package.&text=Visualize%20eigenvalues%20(scree%20plot).,explained%20by%20each%20principal%20component.
   
-fviz_eig(res.pca)
+fviz_eig(res.pca, ncp=20,addlabels = TRUE, ylim = c(0, 12))
 
 # fviz_pca_var(res.pca,
 #              col.var = "contrib", # Color by contributions to the PC
@@ -54,5 +54,8 @@ res.var <- get_pca_var(res.pca)
 coord <- res.var$coord          # Coordinates
 contrib <-res.var$contrib        # Contributions to the PCs
 cos2 <-res.var$cos2           # Quality of representation 
+
+eig <- get_eig(res.pca)
+plot(eig$cumulative.variance.percent)
 ```
 
