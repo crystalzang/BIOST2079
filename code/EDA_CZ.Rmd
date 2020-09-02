@@ -1,0 +1,21 @@
+---
+title: "EDA_CZ"
+author: "Ziwei Crystal Zang"
+date: "8/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+```
+
+```{r}
+data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv")
+head(data[,1:10])
+table(data$type)
+```
+
+```{r}
+matrix <- as.matrix(data[,3:ncol(data)])
+```
