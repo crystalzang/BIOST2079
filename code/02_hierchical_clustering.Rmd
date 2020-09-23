@@ -1,0 +1,100 @@
+---
+title: "02_Hierchical Clusterin"
+author: "Ziwei Crystal Zang"
+date: "9/22/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#library packages
+for (pkg in c("psych", "ggplot2", "dplyr", "readr", "janitor", "mosaic", "factoextra")) {
+  library(pkg, character.only = TRUE)
+}
+```
+
+```{r}
+data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv") 
+
+data <- data%>%
+  clean_names()
+
+colnames(data)
+
+label <- data$type
+
+```
+
+
+```{r}
+#1. Log transform
+#feature_matrix <- apply(data[,3:ncol(data)], 2, function(x) log(x))
+#feature_df <- as.data.frame(feature_matrix)
+#feature_id <- colnames(feature_df)
+#aov( x1553620_at ~ type, data = data)
+# feature_error <- c()
+# for(i in 1:length(feature_id)){
+# #  feature_i <- as.vector(feature_df[,i])
+#   #feature_id_i <- colnames(feature_df)[i]
+#   res.aov <- aov( feature_df[[i]] ~ type, data = data)
+#   feature_error[i] <- sigma(res.aov)
+# }
+# 
+# feature_error_df <- as.data.frame(cbind(feature_id, feature_error))
+# 
+# saveRDS(feature_error_df, "/Users/czang/Documents/2020Fall/2079ML/data/feature_error.rds")
+
+```
+
+
+```{r}
+#2. Select features highly correlated with the lable
+feature_error_df <- readRDS("/Users/czang/Documents/2020Fall/2079ML/data/feature_error.rds")
+feature_error_df$feature_error <- as.numeric(feature_error_df$feature_error)
+
+ggplot(feature_error_df, aes(x = feature_error)) +
+  geom_histogram(binwidth = 0.025) + 
+  labs(title = "Distribution of feature's Residual Standard Error",x= "residual standard error") +
+  theme_bw()
+
+
+feature <- feature_error_df%>%
+  arrange(feature_error)%>%
+  top_n(1500)%>%
+  pull(feature_id)
+
+#subset data with pre-selected features
+data_sub <-  data[,feature]
+```
+
+# hierchical cluster
+```{r}
+matrix <- as.matrix(data_sub)
+matrix <- t(matrix)
+
+# distance between patients
+row_distance = dist(matrix, method = "euclidean")
+
+# try different linkage
+hc.ward = hclust(d = row_distance, method = "ward.D")
+
+fviz_dend(
+  hc.ward,
+ # k = 3,
+  cex = 0.3,
+  palette = "jco",
+  color_labels_by_k = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  labels_track_height = 3.5
+)
+
+hc_label<-cutree(hc.ward, k = 3)
+table(hc_label,label)
+adjustedRandIndex(hc_label, label)
+```
+

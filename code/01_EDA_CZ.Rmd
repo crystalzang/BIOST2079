@@ -11,17 +11,66 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(factoextra)
+library(e1071)
+library(dplyr)
+library(tidyr)
+library(mosaic)
+library("corrplot")
 ```
 
 ```{r}
+# data: sample in row, features in column
 data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv")
-head(data[,1:10])
-table(data$type)
+dim(data) #151 samples, 54677 features
+head(data[,1:10]) 
+
+# tabel of types of breast cancer and counts
+label <- data$type
+table(label)
+
+glimpse(data)
+# there is no NA in the data
+anyNA(data)  
+
+feature_skewness <- apply(data[,3:ncol(data)], 2, function(x) skewness(x) )
+features_id <- colnames(data[,3:ncol(data)])
+
+feature_skewness_df <- as.data.frame(cbind(features_id, feature_skewness))
+feature_skewness_df <- feature_skewness_df%>%
+  mutate(abs_skewness = abs(feature_skewness))
+
+feature_skewness_df$feature_skewness <- as.numeric(feature_skewness_df$feature_skewness)
+
+hist(feature_skewness_df$feature_skewness)
+boxplot(feature_skewness_df$feature_skewness)
+sum(abs(feature_skewness_df$feature_skewness)>2 ) / length(features_id) * 100
+
+```
+
+Histogram of features that have skewness > 6
+```{r}
+feature_skew_id <- feature_skewness_df%>%
+  filter(abs_skewness > 5)
+feature_skew_id <- as.vector(feature_skew_id$features_id)
+
+feature_skew <- data[, feature_skew_id]
+feature_skew <- feature_skew%>%
+  gather("feature_name", "feature_value")
+
+ggplot(feature_skew, aes(x = feature_value)) +
+  geom_density(adjust = 0.67) + aes(colour = feature_name) +
+  labs(title = "Features that have absolute value of skewness score > 5") +
+  theme(legend.position = "none") 
 ```
 
 ```{r}
-#features
-matrix <- as.matrix(data[,3:ncol(data)])
+# matrix: sample in colum, features in rown
+
+#transform the matrix in order to cluster features
+matrix <- t(as.matrix(data[,3:ncol(data)]))
+dim(matrix)
+matrix[1:10,1:10]
+
 #construct pca
 res.pca <- prcomp(matrix, scale = TRUE)
 ```
@@ -30,7 +79,7 @@ res.pca <- prcomp(matrix, scale = TRUE)
 #Plot
 #Code: http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/#:~:text=2.13%2049.9%2014.4-,Compute%20PCA%20in%20R%20using%20prcomp(),function%20and%20the%20factoextra%20package.&text=Visualize%20eigenvalues%20(scree%20plot).,explained%20by%20each%20principal%20component.
   
-fviz_eig(res.pca, ncp=20,addlabels = TRUE, ylim = c(0, 12))
+fviz_eig(res.pca, ncp=10,addlabels = TRUE, ylim = c(0, 100))
 
 # fviz_pca_var(res.pca,
 #              col.var = "contrib", # Color by contributions to the PC
@@ -58,4 +107,5 @@ cos2 <-res.var$cos2           # Quality of representation
 eig <- get_eig(res.pca)
 plot(eig$cumulative.variance.percent)
 ```
+
 
