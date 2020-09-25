@@ -1,0 +1,28 @@
+---
+title: "03_evaluation"
+author: "Ziwei Crystal Zang"
+date: "9/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(stringr)
+```
+
+```{r}
+data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv") 
+
+km4cluster <- read_csv("~/Documents/2020Fall/2079ML/data/km4cluster.csv")
+
+colnames(km4cluster)
+
+kmcluster <- km4cluster%>%
+  mutate(cluster = str_sub('gene\tcluster', -1))
+
+x <- "a string"
+str_sub(x,-1)
+
+```
+
