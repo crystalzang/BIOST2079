@@ -1,0 +1,178 @@
+---
+title: "Biost2079 Project"
+author: "Yao Tong"
+date: "September 19, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library}
+library(ROSE)
+library(tidyverse)
+library(parallel)
+library(splitstackshape)
+library(randomForest)
+library(caret)
+```
+
+
+```{r loaddata}
+breast <- read.csv("Breast_GSE45827.csv", header = TRUE)
+```
+
+## Pre-processing data
+```{r}
+breast_scale <- log(breast[,3:ncol(breast)]) %>% scale(.) %>% 
+  t()
+
+kmeans_res <- mclapply(1:20, function(i){
+  kmeans(breast_scale, i)
+}, mc.cores = 20)
+
+wcss <- sapply(kmeans_res, function(res){
+mean(res$withinss)
+})
+wcss <- c(8109563.7,3774248.4,2346140.7,1710166.4,1340470.8,1101694.0,933076.1,808811.1,711480.7,634918.9,572355.5,520891.7,478299.1,441646.7,410216.8,383048.5,358995.9,337995.3,319064.6,302143.5)
+plot(wcss, type = "b", xlab = "K", ylab = "Average WCSS")
+
+K <- 4
+
+km4 <- kmeans_res[[K]]
+
+res <- data.frame(gene=names(km4$cluster), cluster=km4$cluster, row.names = NULL)
+saveRDS(res, file = "km4.rds")
+
+km4_cluster <- lapply(1:K, function(i){
+  km4$cluster[km4$cluster==K]
+})
+
+km4_id <- lapply(km4_cluster, function(i){
+  names(i)
+})
+
+km4_sample <- lapply(km4_id, function(i){
+  sample(i, ceiling(length(i)/100))
+})
+
+```
+
+```{r}
+table(breast$type)
+```
+
+Data is imbalanced, so we want to do oversampleing on the normal class.
+
+```{r}
+data_balanced_over <- ovun.sample(type ~ ., data = breast, method = "over",N = 30)$data
+```
+
+
+```{r}
+train_index <- sample(1:nrow(adult), )
+```
+
+
+
+```{r}
+feature_error_df <- readRDS("/home/huy4/projects/pj2079/BIOST2079/data/feature_error.rds")
+feature_error_df$feature_error <- as.numeric(feature_error_df$feature_error)
+
+# get feature id
+feature <- feature_error_df%>%
+  arrange(feature_error)%>%
+  top_n(1500)%>%
+  pull(feature_id)
+
+breast_scale <- log(breast[,3:ncol(breast)]) %>% scale(.) 
+
+#subset data with pre-selected features
+#rownames_noX <- substr(rownames(breast_scale), 2, nchar(rownames(breast_scale)))
+#feature_noX <- substr(feature, 2, nchar(feature))
+#index <- sapply(feature_noX, function(i){
+#  which(rownames_noX==i)
+#})
+#data_sub <-  breast_scale[unlist(index),]
+
+colnames_noX <- substr(colnames(breast_scale), 2, nchar(colnames(breast_scale)))
+feature_noX <- substr(feature, 2, nchar(feature))
+index <- sapply(feature_noX, function(i){
+  which(colnames_noX==i)
+})
+data_sub <-  breast_scale[,unlist(index)]
+rownames(data_sub) <- breast[,1]
+data_sub <- as.data.frame.table(data_sub)
+
+kmeans_res_sub <- mclapply(1:20, function(i){
+  kmeans(data_sub, i)
+}, mc.cores = 20)
+
+wcss <- sapply(kmeans_res_sub, function(res){
+mean(res$withinss)
+})
+
+```
+
+```{r sampling}
+# Stratified sampling
+data_sub$label <- breast[,2]
+train_test <- stratified(data_sub, "label", 0.8, keep.rownames = F, bothSets = TRUE)
+
+train <- train_test[[1]]
+test <- train_test[[2]]
+
+train_val <- stratified(train, "label", 0.8, keep.rownames = F, bothSets = TRUE)
+
+train <- train_val[[1]]
+validation <- train_val[[2]]
+```
+
+```{r random forest}
+forest_res <- randomForest(label ~ ., data = dtrain, nodesize = 20, ntree =80)
+predictForest <- predict(forest_res, newdata = validation)
+table(validation$label, predictForest)
+```
+
+```{r test}
+predictForest <- predict(forest_res, newdata = test)
+table(test$label, predictForest)
+```
+
+
+```{r evaluation}
+cm = as.matrix(table(test$label, predictForest)) 
+ n = sum(cm) # number of instances
+ nc = nrow(cm) # number of classes
+ diag = diag(cm) # number of correctly classified instances per class 
+ rowsums = apply(cm, 1, sum) # number of instances per class
+ colsums = apply(cm, 2, sum) # number of predictions per class
+ p = rowsums / n # distribution of instances over the actual classes
+ q = colsums / n # distribution of instances over the predicted classes
+  accuracy = sum(diag) / n 
+  
+ precision = diag / colsums 
+ recall = diag / rowsums 
+ f1 = 2 * precision * recall / (precision + recall) 
+
+ accuracy
+ data.frame(precision, recall, f1) 
+```
+
+```{r oversampling}
+data_balanced_both <- ovun.sample(label ~ ., data = train, method = "over",N = 210)
+
+
+dtrain$Class <- NULL
+```
+
+```{r}
+breast_x <- breast[, 3:ncol(breast)]
+rownames(breast_x) <- breast[,1]
+breast_y <- t(breast[,2])
+names(breast_y) <- breast[,1]
+breast_y <- as.numeric(breast_y)
+svm_res <- svmrfeFeatureRanking(breast_x, breast_y)
+```
+
