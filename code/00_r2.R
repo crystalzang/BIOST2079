@@ -14,7 +14,7 @@ res.pca2 <- prcomp(matrix2, scale = T)
 summary(res.pca2)
 
 #variance explained
-fviz_eig(res.pca2, ncp=10,addlabels = TRUE, ylim = c(0, 30))
+fviz_eig(res.pca2, ncp=10,addlabels = TRUE, ylim = c(0, 55))
 
 #dim1, 2 scatterplot by cancer types
 groups <- as.factor(label)

@@ -28,11 +28,11 @@ head(data[,1:10])
 label <- data$type
 table(label)
 
-glimpse(data)
+#glimpse(data)
 # there is no NA in the data
 anyNA(data)  
 
-feature_skewness <- apply(data[,3:ncol(data)], 2, function(x) skewness(x) )
+feature_skewness <- apply(data[,3:ncol(data)], 2, function(x) skewness(x, type =1) )
 features_id <- colnames(data[,3:ncol(data)])
 
 feature_skewness_df <- as.data.frame(cbind(features_id, feature_skewness))
@@ -106,6 +106,28 @@ cos2 <-res.var$cos2           # Quality of representation
 
 eig <- get_eig(res.pca)
 plot(eig$cumulative.variance.percent)
+```
+
+# log transformation
+```{r}
+n <-  length(features_id)
+
+feature_skewness <- apply(data[,3:ncol(data)], 2, function(x) skewness(x, type =1) )
+sum(abs(feature_skewness)>1 ) / n * 100 #27.6
+
+
+
+feature_log <- apply(data[,3:ncol(data)], 2, function(x) log(x))
+feature_log <- as.data.frame(feature_log)
+feature_skewness2 <- apply(feature_log[,1:ncol(feature_log)], 2, function(x) skewness(x, type =1) )
+sum(abs(feature_skewness2)>1 ) / n * 100 #21.3
+
+
+sum(abs(feature_skewness2)>1) 
+```
+
+```{r}
+
 ```
 
 

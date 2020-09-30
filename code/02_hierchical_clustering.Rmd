@@ -11,29 +11,25 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 
 #library packages
-for (pkg in c("psych", "ggplot2", "dplyr", "readr", "janitor", "mosaic", "factoextra")) {
+for (pkg in c("psych", "ggplot2", "dplyr", "readr", "janitor", "mosaic", "factoextra", "patchwork", "mclust")) {
   library(pkg, character.only = TRUE)
 }
 ```
 
 ```{r}
 data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv") 
-
 data <- data%>%
   clean_names()
-
 colnames(data)
-
 label <- data$type
-
 ```
 
 
 ```{r}
-#1. Log transform
-#feature_matrix <- apply(data[,3:ncol(data)], 2, function(x) log(x))
-#feature_df <- as.data.frame(feature_matrix)
-#feature_id <- colnames(feature_df)
+#log 
+# feature_matrix <- apply(data[,3:ncol(data)], 2, function(x) log(x))
+# feature_df <- as.data.frame(feature_matrix)
+# feature_id <- colnames(feature_df)
 #aov( x1553620_at ~ type, data = data)
 # feature_error <- c()
 # for(i in 1:length(feature_id)){
@@ -51,8 +47,8 @@ label <- data$type
 
 
 ```{r}
-#2. Select features highly correlated with the lable
-feature_error_df <- readRDS("/Users/czang/Documents/2020Fall/2079ML/data/feature_error.rds")
+#1. Select features highly correlated with the lable
+feature_error_df <- readRDS("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/data/feature_error.rds")
 feature_error_df$feature_error <- as.numeric(feature_error_df$feature_error)
 
 
@@ -69,24 +65,57 @@ feature <- feature_error_df%>%
 
 #subset data with pre-selected features
 data_sub <-  data[,feature]
+
+#2. Log transform
+feature_matrix <- apply(data_sub[,3:ncol(data_sub)], 2, function(x) log(x))
+feature_df <- as.data.frame(feature_matrix)
+feature_id <- colnames(feature_df)
+
+#3. standardize
+feature_df_z <- feature_df%>%
+  mutate_each_(funs(scale(.) %>% as.vector), vars=feature_id)
+
+#summary(feature_df_z$x205399_at)
 ```
 
 # Hierchical Cluster
 
 ## Dissimilarity Measure: Euclidean Distance
 ```{r}
-matrix <- as.matrix(data_sub)
+matrix <- as.matrix(feature_df_z)
 matrix <- t(matrix)
+dim(matrix)
 
 # distance between patients
 row_distance = dist(matrix, method = "euclidean")
 
-fviz_nbclust(matrix, FUN = kmeans, method = "wss")
-fviz_nbclust(matrix, FUN = hcut, method = "wss")
+nc_km <- fviz_nbclust(matrix, FUN = kmeans, method = "wss")+
+  labs(title ="Optimal number of cluster using K-means")
 
 
-fviz_nbclust(matrix, FUN = kmeans, method = "gap_stat")
-fviz_nbclust(matrix, FUN = hcut, method = "gap_stat")
+nc_hcut <-  fviz_nbclust(matrix, FUN = hcut, method = "wss")+
+  labs(title ="Optimal number of cluster using Hierchical Clustering")
+
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/ncluster_comparison.png", res=100)
+nc_km + nc_hcut+ plot_layout(ncol=1)
+dev.off()
+
+
+nc_gap_stats_km <-  fviz_nbclust(matrix, FUN = kmeans, method = "gap_stat", nboot = 500, nstart = 25)
+
+saveRDS(nc_gap_stats_km, "/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/data/nc_gap_stats_km.rds")
+
+nc_gap_stats_hcut <- fviz_nbclust(matrix, FUN = hcut, method = "gap_stat")
+saveRDS(nc_gap_stats_hcut, "/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/data/nc_gap_stats_hcut.rds")
+
+
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/ncluster_gapstats_comparison.png", res=100)
+nc_gap_stats_km + nc_gap_stats_hcut+ plot_layout(ncol=1)
+dev.off()
+
+fviz_nbclust(matrix, FUNcluster = kmeans, method = "silhouette")
+
+fviz_nbclust(matrix, FUNcluster = hcut, method = "silhouette")
 
 ```
 
@@ -95,10 +124,10 @@ fviz_nbclust(matrix, FUN = hcut, method = "gap_stat")
 # try different linkage
 hc.ward = hclust(d = row_distance, method = "ward.D")
 
-png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_ward_euclidean_3cluster.png", width = 1500, height = 1000, res=220)
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_ward_euclidean_10cluster_z.png", width = 1500, height = 1000, res=220)
 fviz_dend(
   hc.ward,
-  k = 3,
+  k = 10,
   cex = 0.3,
   palette = "jco",
   color_labels_by_k = TRUE,
@@ -118,11 +147,11 @@ dev.off()
 ```{r}
 hc.complete <- hclust(d = row_distance, method = "complete")
 
-png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_complete_euclidean_3cluster.png", width = 1500, height = 1000, res=220)
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_complete_euclidean_10cluster_z.png", width = 1500, height = 1000, res=220)
 
 fviz_dend(
   hc.complete,
-  k = 3,
+  k = 10,
   cex = 0.2,
   palette = "jco",
   color_labels_by_k = TRUE,
@@ -140,11 +169,11 @@ dev.off()
 ```{r}
 hc.average <- hclust(d = row_distance, method = "average")
 
-png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_average_euclidean_3cluster.png", width = 1500, height = 1000, res=220)
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_average_euclidean_10cluster_z.png", width = 1500, height = 1000, res=220)
 
 fviz_dend(
   hc.average,
-  k = 3,
+  k = 10,
   cex = 0.2,
   palette = "jco",
   color_labels_by_k = TRUE,
@@ -191,5 +220,135 @@ fviz_dend(
   labels_track_height = 3
 )
 dev.off()
+```
+
+
+
+
+## Dissimilarity Measure: Pearson correlation
+```{r}
+matrix <- as.matrix(feature_df_z)
+matrix <- t(matrix)
+
+# distance between patients
+row_distance_p = get_dist(matrix, method = "pearson")
+class(row_distance_p)
+```
+
+### Ward
+```{r}
+# try different linkage
+hc.ward = hclust(d = row_distance_p, method = "ward.D")
+
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_ward_pearson_4cluster_z.png", width = 1500, height = 1000, res=220)
+fviz_dend(
+  hc.ward,
+  k = 4,
+  cex = 0.3,
+  palette = "jco",
+  color_labels_by_k = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  labels_track_height = 3.5
+)
+dev.off()
+
+# hc_label<-cutree(hc.ward, k = 3)
+# table(hc_label,label)
+# adjustedRandIndex(hc_label, label)
+```
+
+### Complete
+```{r}
+hc.complete <- hclust(d = row_distance_p, method = "complete")
+
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_complete_pearson_4cluster_z.png", width = 1500, height = 1000, res=220)
+
+fviz_dend(
+  hc.complete,
+  k = 4,
+  cex = 0.2,
+  palette = "jco",
+  color_labels_by_k = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco"
+)
+dev.off()
+```
+
+### Average
+```{r}
+hc.average <- hclust(d = row_distance_p, method = "average")
+
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_average_pearson_4cluster_z.png", width = 1500, height = 1000, res=220)
+
+fviz_dend(
+  hc.average,
+  k = 4,
+  cex = 0.2,
+  palette = "jco",
+  color_labels_by_k = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco"
+)
+dev.off()
+```
+
+### Single
+```{r}
+hc.single <- hclust(d = row_distance, method = "single")
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_single_euclidean_4cluster.png", width = 1500, height = 1000, res=220)
+fviz_dend(
+  hc.single,
+  k = 4,
+  cex = 0.2,
+ # palette = "jco",
+  color_labels_by_k = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  labels_track_height = 3
+)
+dev.off()
+```
+
+### Centroid
+```{r}
+hc.centroid <- hclust(d = row_distance, method = "centroid")
+
+png("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/output/hierchical_centroid_euclidean_4cluster.png", width = 1500, height = 1000, res=220)
+fviz_dend(
+  hc.centroid,
+  k = 4,
+  cex = 0.2,
+  palette = "jco",
+  color_labels_by_k = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  labels_track_height = 3
+)
+dev.off()
+```
+
+# Guassian mixture clustering 
+```{r}
+library(mclust)
+?mclustModelNames
+fit = Mclust(matrix, G=1:9, modelNames="EII")
+summary(fit)
+
+# bic for selected model
+fit$bic 
+# The optimal number of mixture components (K)
+fit$G 
+
+#evaluation
+mix_label <- fit$classification
+table(mix_label, label)
+adjustedRandIndex(mix_label, label)
 ```
 

@@ -1,0 +1,214 @@
+---
+title: "final_model"
+author: "Ziwei Crystal Zang"
+date: "9/27/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#library packages
+for (pkg in c("psych", "ggplot2", "dplyr", "readr", "janitor", "mosaic", "factoextra", "patchwork")) {
+  library(pkg, character.only = TRUE)
+}
+```
+
+```{r}
+data <- read_csv("/Users/czang/Documents/2020Fall/2079ML/data/Breast_GSE45827.csv") 
+data <- data%>%
+  clean_names()
+```
+
+```{r}
+label <- data$type
+
+#1. Select features highly correlated with the lable
+feature_error_df <- readRDS("/Users/czang/Documents/2020Fall/2079ML/project/BIOST2079/data/feature_error.rds")
+feature_error_df$feature_error <- as.numeric(feature_error_df$feature_error)
+
+feature <- feature_error_df%>%
+  arrange(feature_error)%>%
+  top_n(1500)%>%
+  pull(feature_id)
+
+#subset data with pre-selected features
+data_sub <-  data[,feature]
+
+#2. Log transform
+feature_matrix <- apply(data_sub[,3:ncol(data_sub)], 2, function(x) log(x))
+feature_df <- as.data.frame(feature_matrix)  #151 x 1498
+feature_id <- colnames(feature_df)
+matrix <- as.matrix(feature_df)
+matrix <- t(matrix)
+
+#3. standardize
+feature_df_z <- feature_df%>%
+  mutate_each_(funs(scale(.) %>% as.vector), vars=feature_id)  #151 x 1498
+
+matrix_z <- as.matrix(feature_df_z) #151 x 1498
+matrix_z <- t(matrix_z) #1498 x 151
+dim(matrix_z)
+```
+
+# Cluster 1
+```{r}
+# distance matrix
+row_distance = dist(matrix_z, method = "euclidean")
+length(row_distance)
+
+hc.ward.euclidean = hclust(d = row_distance, method = "ward.D")
+str(hc.ward.euclidean)
+
+sub_grp <- cutree(hc.ward.euclidean, k = 4)
+
+table(sub_grp)
+
+feature_df_t <- as.data.frame(t(feature_df))
+
+
+fviz_cluster(list( data = feature_df_t, cluster = sub_grp), axes = c(2, 3), geom="point", main = "Hierchical Clustering Using Euclidean Distance and Ward's Method")
+
+hierchical4cluster <- sub_grp%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column("gene")
+colnames(hierchical4cluster) <- c("gene", "hierchical_cluster_euclidean")
+```
+
+
+# Cluster 2
+```{r}
+# distance between patients
+row_distance_p = get_dist(matrix_z, method = "pearson")
+
+hc.ward.pearson= hclust(d = row_distance_p, method = "ward.D")
+str(hc.ward.pearson)
+
+sub_grp_p <- cutree(hc.ward.pearson, k = 4)
+
+table(sub_grp_p)
+
+feature_df_t <- as.data.frame(t(feature_df))
+
+
+fviz_cluster(list(data = feature_df_t, cluster = sub_grp_p), axes = c(2, 3), geom="point", main = "Hierchical Clustering Using Pearson Correlation and Ward's Method")
+
+hierchical4cluster_p <- sub_grp%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column("gene")
+colnames(hierchical4cluster) <- c("gene", "hierchical_cluster_pearson")
+```
+
+# 10 clusters (euclidean)
+```{r}
+# distance between patients
+row_distance = dist(matrix, method = "euclidean")
+
+hc.ward.euclidean= hclust(d = row_distance, method = "ward.D")
+str(hc.ward.pearson)
+
+sub_grp_p <- cutree(hc.ward.euclidean, k = 10)
+
+table(sub_grp_p)
+
+feature_df_t <- as.data.frame(t(feature_df))
+
+
+fviz_cluster(list(data = feature_df_t, cluster = sub_grp_p), geom="point", main = "Hierchical Clustering Using Euclidean Distance and Ward's Method (10 clusters)")
+
+hierchical4cluster_p <- sub_grp%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column("gene")
+colnames(hierchical4cluster) <- c("gene", "hierchical_cluster_pearson")
+```
+
+```{r}
+row_distance_p = dist(matrix, method = "pearson")
+
+hc.ward.pearson= hclust(d = row_distance_p, method = "ward.D")
+str(hc.ward.pearson)
+
+sub_grp_p <- cutree(hc.ward.pearson, k = 10)
+
+table(sub_grp_p)
+
+feature_df_t <- as.data.frame(t(feature_df))
+
+
+fviz_cluster(list(data = feature_df_t, cluster = sub_grp_p), geom="point", main = "Hierchical Clustering Using Pearson Correlation and Ward's Method")
+
+hierchical4cluster_p <- sub_grp%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column("gene")
+colnames(hierchical4cluster) <- c("gene", "hierchical_cluster_pearson")
+```
+
+
+
+```{r}
+library(dendextend)
+dend_euclidean <- as.dendrogram(hc.ward.euclidean)
+dend_pearson <- as.dendrogram(hc.ward.pearson)
+
+tanglegram(dend_euclidean, dend_pearson)
+
+
+dend_list <- dendlist(dend_euclidean, dend_pearson)
+
+tanglegram(dend_euclidean, dend_pearson,
+  highlight_distinct_edges = FALSE, # Turn-off dashed lines
+  common_subtrees_color_lines = FALSE, # Turn-off line colors
+  common_subtrees_color_branches = TRUE, # Color common branches 
+  main = paste("entanglement =", round(entanglement(dend_list), 2))
+  )
+
+entanglement(dend_euclidean, dend_pearson,L = 0)
+
+entanglement(dend_euclidean, dend_pearson,L = 0.25)
+
+entanglement(dend_euclidean, dend_pearson,L = 1)
+
+```
+
+# Cluster 3
+```{r}
+km4cluster <- readRDS("~/Documents/2020Fall/2079ML/project/BIOST2079/data/km4.rds")
+km4cluster$gene <- tolower(km4cluster$gene) 
+
+km4cluster <- km4cluster%>%
+  as.data.frame()%>%
+  mutate(cluster = if_else(cluster == 1, "c2", 
+                           if_else(cluster == 2, "c1",
+                                   if_else(cluster == 3, "c3", "c4"))))
+
+
+data_cluster_km <- feature_df_t%>%
+  tibble::rownames_to_column("gene")%>%
+  left_join(km4cluster, by = "gene")%>%
+  filter(!is.na(cluster))
+
+feature <- data_cluster_km%>%
+  select(-cluster, -gene)
+
+table(data_cluster_km$cluster)
+
+fviz_cluster(list(data = feature, cluster = data_cluster_km$cluster), axes = c(2, 3), geom="point", main = "K-means Clustering")
+
+```
+
+```{r}
+data_cluster_all <- feature_df_t%>%
+  tibble::rownames_to_column("gene")%>%
+  left_join(km4cluster, by = "gene")%>%
+  left_join(hierchical4cluster, by="gene")
+
+
+cluster_comp <- data_cluster_all%>%
+  filter(!is.na(cluster))%>%
+  select(gene, hierchical_cluster, cluster)%>%
+  rename("kmeans_cluster" = "cluster")
+
+table(cluster_comp$hierchical_cluster, cluster_comp$kmeans_cluster)
+```
+
